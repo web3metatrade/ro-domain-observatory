@@ -1,0 +1,47 @@
+{
+  "release_tag": "dns-snapshot-2026-08-13-full",
+  "snapshot_id": "dns-12types-1000qps-retry1-20260812T190838Z",
+  "scope": "all_candidates",
+  "candidate_discovery": "multi_source_union",
+  "measurement_source": "independent_bulk_dns_lookup",
+  "query_engine": "ZDNS",
+  "query_types": [
+    "A",
+    "AAAA",
+    "CNAME",
+    "MX",
+    "NS",
+    "SOA",
+    "TXT",
+    "CAA",
+    "HTTPS",
+    "SVCB",
+    "DS",
+    "DNSKEY"
+  ],
+  "status_counts": {
+    "NOERROR": 4899492,
+    "NXDOMAIN": 3662742,
+    "SERVFAIL": 324531,
+    "TIMEOUT": 76034,
+    "REFUSED": 86,
+    "ERROR": 23
+  },
+  "files": {
+    "domains_ro_all_sources.csv.gz": {
+      "bytes": 7002362,
+      "rows": 746909,
+      "sha256": "c87aede97383c91e5ac10ea7848d6e0ed0f704ea741dfa028e5f744c4cd6c33e"
+    },
+    "dns_query_results.csv.gz": {
+      "bytes": 93962984,
+      "rows": 8962908,
+      "sha256": "1202e595c6e4ea989a77301636c97cc5fb28d6f0ddd62e51d1e7f72a092e2e6c"
+    },
+    "dns_records.csv.gz": {
+      "bytes": 93724941,
+      "rows": 6174465,
+      "sha256": "2ad25504b03728f9a33d72de1bf24c4f0bf422c18023afbd8cc35672c6a87a8a"
+    }
+  }
+}

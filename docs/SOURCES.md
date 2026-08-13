@@ -43,6 +43,20 @@ The machine-readable details and current access decisions are in
 - Search result pages should not be scraped where an API or bulk dataset is the
   authorized access path.
 
+## Discovery versus measurement
+
+The complete DNS snapshot uses two distinct provenance layers:
+
+- **Candidate discovery:** the union of source IDs recorded for each domain in
+  `domains_ro_all_sources.csv.gz`.
+- **DNS measurement:** direct bulk DNS queries performed by this project with
+  ZDNS against the 12 documented record types.
+
+The measurement method is therefore `independent_bulk_dns_lookup`; the
+discovery method is `multi_source_union`. Calling the source `brute force`
+would be inaccurate because DNS cannot enumerate the namespace and the scan
+queried an existing candidate list.
+
 ## Import phases
 
 - Phase 1: unique registrable `.ro` domains and provenance.

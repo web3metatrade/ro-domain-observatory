@@ -90,12 +90,12 @@
     "url": "https://connorlanigan.com/projects/all-domains-dataset",
     "access_method": "Public bulk download",
     "coverage": "Hundreds of millions of public-suffix domains observed in CT logs",
-    "license": null,
+    "license": "No license stated on project page (checked 2026-08-13)",
     "redistribution_status": "unclear",
     "public_export": 0,
     "import_status": "imported_internal_license_review",
-    "notes": "Very high-value CT-derived bulk source; verify redistribution terms before public export.",
-    "last_checked_at": "2026-08-12"
+    "notes": "Very high-value CT-derived bulk source. The complete DNS release preserves this candidate provenance but does not claim to relicense the upstream compilation.",
+    "last_checked_at": "2026-08-13"
   },
   {
     "source_id": "openintel_ct_ccnames",

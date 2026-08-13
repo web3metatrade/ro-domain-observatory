@@ -14,9 +14,16 @@ Build date: 2026-08-12
 - Domain/source associations: 1,921,764
 
 The complete internal union includes observations from sources whose
-redistribution terms are still unclear or restricted. It must not be published
-as-is. The public export contains 435,574 domains supported by at least one
-source marked `public_export: 1` in `sources.json`.
+redistribution terms are still unclear or restricted. It must not be presented
+as a relicensed copy of those upstream compilations. The curated public export
+contains 435,574 domains supported by at least one source marked
+`public_export: 1` in `sources.json`.
+
+The separately identified complete DNS measurement release covers all 746,909
+candidates. It publishes the project's independently collected DNS answers and
+statuses while retaining the actual candidate-source IDs. Its provenance is
+`multi_source_union` for discovery and `independent_bulk_dns_lookup` for
+measurement; it is not an alphabetical brute-force enumeration.
 
 ## Exports
 

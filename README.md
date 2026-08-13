@@ -13,8 +13,11 @@ later phases.
 - A domain is never treated as belonging to a company merely because it was
   observed in a list.
 - Every domain keeps source provenance and observation timestamps.
-- Public exports exclude sources whose redistribution terms are unclear or
-  restricted unless permission is obtained.
+- The curated public export excludes sources whose redistribution terms are
+  unclear or restricted unless permission is obtained.
+- Complete DNS measurement releases may cover the full candidate union. They
+  preserve candidate-source provenance and distinguish discovery inputs from
+  DNS observations collected independently by this project.
 - Hostnames are normalized to their registrable `.ro` domain while the original
   hostname can also be retained.
 - Imports are idempotent and can be resumed.
@@ -63,6 +66,12 @@ CSV exports in `data/exports/dns_query_results.csv.gz` and
 `data/exports/dns_records.csv.gz`. See `docs/DNS_DATASET.md` for the exact
 column definitions.
 
-The repository release files under `data/public/` are filtered to domains with
-at least one redistributable provenance source. Internal databases and raw
-source downloads are excluded from Git.
+The repository files under `data/public/` are filtered to domains with at least
+one redistributable provenance source. The complete independently measured DNS
+snapshot is documented under `data/full-measurement/` and distributed as a
+GitHub Release so the large compressed files do not inflate Git history.
+
+The complete release was produced by a **bulk DNS lookup over a multi-source
+candidate list**. It was not produced by alphabetically brute-forcing the `.ro`
+namespace. The domain-candidate file retains the actual source IDs; DNS answers
+and statuses were measured directly by this project.
