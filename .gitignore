@@ -1,0 +1,10 @@
+data/raw/
+data/exports/
+data/dns/
+!data/public/
+!data/public/**
+data/*.sqlite3
+data/*.sqlite3-*
+*.log
+__pycache__/
+*.pyc

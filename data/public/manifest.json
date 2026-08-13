@@ -1,0 +1,18 @@
+{
+  "dns_query_results_public.csv.gz": {
+    "bytes": 54900757,
+    "rows": 5226888,
+    "sha256": "ba7f038f3e084e2525dbd489dc775ef8c3e829434920a14c935945bf744985a4"
+  },
+  "dns_records_public.csv.gz": {
+    "bytes": 63737502,
+    "rows": 4109974,
+    "sha256": "a1e877e9d56513fb045f02792593ac89ecc8b71dea0ffc6081898f173b7c4235"
+  },
+  "domains_ro_public.csv.gz": {
+    "bytes": 4252440,
+    "rows": 435574,
+    "sha256": "527ee478adebc8b0da5b49f4067e0a1d04813259b0037bc3f48ede60e0abd444"
+  },
+  "public_domains": 435574
+}

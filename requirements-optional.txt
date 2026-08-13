@@ -1,0 +1,2 @@
+# Only needed for importing OpenStreetMap .osm.pbf extracts.
+osmium>=4.3,<5
