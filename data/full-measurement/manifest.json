@@ -1,5 +1,6 @@
 {
-  "release_tag": "dns-snapshot-2026-08-13-full",
+  "dataset_version": "dns-snapshot-2026-08-13-full",
+  "distribution": "git_repository",
   "snapshot_id": "dns-12types-1000qps-retry1-20260812T190838Z",
   "scope": "all_candidates",
   "candidate_discovery": "multi_source_union",

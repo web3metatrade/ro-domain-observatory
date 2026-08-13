@@ -68,8 +68,8 @@ column definitions.
 
 The repository files under `data/public/` are filtered to domains with at least
 one redistributable provenance source. The complete independently measured DNS
-snapshot is documented under `data/full-measurement/` and distributed as a
-GitHub Release so the large compressed files do not inflate Git history.
+snapshot, including its compressed exports and checksum manifest, is under
+`data/full-measurement/`.
 
 The complete release was produced by a **bulk DNS lookup over a multi-source
 candidate list**. It was not produced by alphabetically brute-forcing the `.ro`

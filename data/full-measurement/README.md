@@ -1,8 +1,8 @@
 # Complete DNS measurement release
 
-Release tag: `dns-snapshot-2026-08-13-full`
+Dataset version: `dns-snapshot-2026-08-13-full`
 
-This release covers all 746,909 normalized `.ro` candidate domains in the local
+This snapshot covers all 746,909 normalized `.ro` candidate domains in the local
 multi-source union, including candidates whose upstream redistribution status
 is unclear or restricted. It contains DNS facts independently measured by this
 project and preserves the source IDs that supplied each candidate domain.
@@ -16,7 +16,8 @@ project and preserves the source IDs that supplied each candidate domain.
 | `dns_records.csv.gz` | 6,174,465 | Normalized records from all DNS response sections |
 
 Exact sizes and SHA-256 hashes are in `manifest.json`. Column definitions are
-in `docs/DNS_DATASET.md`.
+in `docs/DNS_DATASET.md`. The compressed exports are tracked directly because
+each is below GitHub's 100 MiB per-file limit.
 
 ## Provenance statement
 
