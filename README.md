@@ -75,3 +75,10 @@ The complete release was produced by a **bulk DNS lookup over a multi-source
 candidate list**. It was not produced by alphabetically brute-forcing the `.ro`
 namespace. The domain-candidate file retains the actual source IDs; DNS answers
 and statuses were measured directly by this project.
+
+The privacy-minimized HTTP snapshot from 13–19 August 2026 covers 267,863
+public-provenance domains, 909,683 unique sanitized sitemap observations and
+70,237 single-active-CUI page-evidence rows. Large generated files are
+distributed as GitHub Release assets instead of being added to Git history.
+See `docs/HTTP_DATASET.md` for schemas, hashes, privacy exclusions and the exact
+reproduction commands.
