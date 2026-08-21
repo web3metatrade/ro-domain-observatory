@@ -126,6 +126,7 @@ LOCAL_NETWORK_ERROR_MARKERS = (
     "winerror 10065",
     "winerror 1231",
 )
+DEFAULT_RETRY_STATUSES = ("local_network_error", "worker_error")
 
 
 def utc_now() -> str:
@@ -157,6 +158,15 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=1,
         help="After the main pass, rerun retryable site failures this many times.",
+    )
+    parser.add_argument(
+        "--retry-status",
+        action="append",
+        dest="retry_statuses",
+        help=(
+            "Site status to retry. Repeat for multiple values. Defaults to "
+            "local_network_error and worker_error."
+        ),
     )
     parser.add_argument(
         "--prevent-sleep", action="store_true",
@@ -202,6 +212,44 @@ def is_local_network_error(error: str | None) -> bool:
     """Identify host-machine network failures that must remain retryable."""
     value = (error or "").lower()
     return any(marker in value for marker in LOCAL_NETWORK_ERROR_MARKERS)
+
+
+def retry_statuses(args: argparse.Namespace) -> tuple[str, ...]:
+    values = getattr(args, "retry_statuses", None) or DEFAULT_RETRY_STATUSES
+    return tuple(dict.fromkeys(values))
+
+
+def origin_failure_error(fetches: list[dict[str, Any]]) -> str:
+    """Return a stable, mutually exclusive reason for failed origin probes."""
+    classes: set[str] = set()
+    for row in fetches:
+        status = row.get("status")
+        if isinstance(status, int) and status >= 500:
+            classes.add("http_5xx")
+        error = str(row.get("error") or "")
+        prefix = error.partition(":")[0].casefold()
+        lowered = error.casefold()
+        if prefix in {"clientconnectordnserror", "gaierror", "socket.gaierror"}:
+            classes.add("dns")
+        elif prefix in {
+            "connectiontimeouterror", "timeouterror", "asynciotimeouterror"
+        } or "timed out" in lowered:
+            classes.add("timeout")
+        elif prefix in {
+            "clientconnectorcertificateerror", "clientsslerror", "sslerror"
+        } or "certificate verify failed" in lowered:
+            classes.add("tls")
+        elif error:
+            classes.add("transport")
+    if len(classes) != 1:
+        return "origin_mixed_error"
+    return {
+        "dns": "origin_dns_error",
+        "timeout": "origin_timeout",
+        "tls": "origin_tls_error",
+        "http_5xx": "origin_http_5xx",
+        "transport": "origin_transport_error",
+    }[next(iter(classes))]
 
 
 class SafeResolver(AbstractResolver):
@@ -583,13 +631,25 @@ async def process_domain(
         f"http://{domain}/",
         f"http://www.{domain}/",
     ]
-    for probe in probe_urls:
-        response = await fetcher.fetch(probe, "origin_probe", args.max_html_bytes)
-        fetches.append(fetch_record(response))
-        if response.get("status") is not None and response["status"] < 500:
-            origin_fetch = response
-            origin_url = response["final_url"]
-            break
+    probe_tasks = [
+        asyncio.create_task(
+            fetcher.fetch(probe, "origin_probe", args.max_html_bytes)
+        )
+        for probe in probe_urls
+    ]
+    try:
+        for completed_probe in asyncio.as_completed(probe_tasks):
+            response = await completed_probe
+            fetches.append(fetch_record(response))
+            if response.get("status") is not None and response["status"] < 500:
+                origin_fetch = response
+                origin_url = response["final_url"]
+                break
+    finally:
+        for task in probe_tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*probe_tasks, return_exceptions=True)
 
     if not origin_fetch or not origin_url:
         local_network_failure = any(
@@ -606,7 +666,7 @@ async def process_domain(
             "error": (
                 "local_network_failure"
                 if local_network_failure
-                else "all_origin_probes_failed"
+                else origin_failure_error(fetches)
             ),
             "fetches": fetches,
             "pages": pages,
@@ -1026,11 +1086,14 @@ async def run(args: argparse.Namespace) -> None:
     selected_count = sum(1 for _ in iter_items())
 
     connection = open_database(args.database)
+    retryable_statuses = retry_statuses(args)
+    placeholders = ",".join("?" for _ in retryable_statuses)
     completed = {
         row[0]
         for row in connection.execute(
             "SELECT domain FROM sites "
-            "WHERE status NOT IN ('local_network_error', 'worker_error')"
+            f"WHERE status NOT IN ({placeholders})",
+            retryable_statuses,
         )
     }
     remaining_count = sum(1 for item in iter_items() if item["domain"] not in completed)
@@ -1183,9 +1246,11 @@ def main() -> None:
     for pass_index in range(args.final_retry_passes + 1):
         asyncio.run(run(args))
         connection = open_database(args.database)
+        statuses = retry_statuses(args)
+        placeholders = ",".join("?" for _ in statuses)
         retryable = connection.execute(
-            "SELECT COUNT(*) FROM sites "
-            "WHERE status IN ('local_network_error', 'worker_error')"
+            f"SELECT COUNT(*) FROM sites WHERE status IN ({placeholders})",
+            statuses,
         ).fetchone()[0]
         connection.close()
         if not retryable:

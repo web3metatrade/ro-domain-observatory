@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-RETRYABLE = ("local_network_error", "worker_error")
+DEFAULT_RETRYABLE = ("local_network_error", "worker_error")
 
 
 class MemoryStatus(ctypes.Structure):
@@ -88,13 +88,26 @@ def private_memory_mb(pid: int) -> float:
         kernel32.CloseHandle(handle)
 
 
-def database_stats(database: Path, selected: int) -> tuple[int, int, dict[str, int]]:
+def database_stats(
+    database: Path, selected_domains: list[str], retryable_statuses: tuple[str, ...]
+) -> tuple[int, int, dict[str, int]]:
     connection = sqlite3.connect(database, timeout=30)
-    statuses = dict(connection.execute("SELECT status, COUNT(*) FROM sites GROUP BY status"))
+    connection.execute(
+        "CREATE TEMP TABLE selected_domains(domain TEXT PRIMARY KEY) WITHOUT ROWID"
+    )
+    connection.executemany(
+        "INSERT INTO selected_domains VALUES (?)", ((domain,) for domain in selected_domains)
+    )
+    statuses = dict(
+        connection.execute(
+            "SELECT sites.status,COUNT(*) FROM sites "
+            "JOIN selected_domains USING(domain) GROUP BY sites.status"
+        )
+    )
     connection.close()
     stored = sum(statuses.values())
-    retryable = sum(statuses.get(status, 0) for status in RETRYABLE)
-    return stored, max(selected - stored, 0), statuses
+    retryable = sum(statuses.get(status, 0) for status in retryable_statuses)
+    return stored, max(len(selected_domains) - stored, 0), statuses
 
 
 def parse_args() -> argparse.Namespace:
@@ -106,19 +119,40 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--concurrency", type=int, default=30)
     parser.add_argument("--rps", type=float, default=30.0)
     parser.add_argument("--timeout", type=float, default=15.0)
+    parser.add_argument(
+        "--request-retries",
+        type=int,
+        default=0,
+        help=(
+            "Retries inside each individual HTTP request. Domain-level final retry is "
+            "controlled separately and is the recommended recovery mechanism."
+        ),
+    )
     parser.add_argument("--memory-limit-mb", type=float, default=1200.0)
     parser.add_argument("--minimum-free-mb", type=float, default=900.0)
     parser.add_argument("--pause-seconds", type=float, default=5.0)
     parser.add_argument("--max-memory-kills", type=int, default=3)
     parser.add_argument("--idle-timeout-seconds", type=float, default=900.0)
     parser.add_argument("--log-prefix", type=Path, required=True)
+    parser.add_argument(
+        "--final-retry-status",
+        action="append",
+        dest="final_retry_statuses",
+        help=(
+            "Status included in the one final retry pass. Repeat as needed. "
+            "Defaults to local_network_error and worker_error."
+        ),
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     with args.sample.open("r", encoding="utf-8", newline="") as handle:
-        selected = sum(1 for _ in csv.DictReader(handle))
+        selected_domains = [row["domain"] for row in csv.DictReader(handle)]
+    if len(selected_domains) != len(set(selected_domains)):
+        raise ValueError("sample contains duplicate domains")
+    selected = len(selected_domains)
 
     crawler = Path(__file__).with_name("http_pilot.py")
     args.log_prefix.parent.mkdir(parents=True, exist_ok=True)
@@ -126,10 +160,15 @@ def main() -> int:
     stderr_path = args.log_prefix.with_suffix(".stderr.log")
     memory_kills = 0
     final_retry_started = False
+    final_retry_statuses = tuple(
+        dict.fromkeys(args.final_retry_statuses or DEFAULT_RETRYABLE)
+    )
 
     while True:
-        stored, unseen, statuses = database_stats(args.database, selected)
-        retryable = sum(statuses.get(status, 0) for status in RETRYABLE)
+        stored, unseen, statuses = database_stats(
+            args.database, selected_domains, final_retry_statuses
+        )
+        retryable = sum(statuses.get(status, 0) for status in final_retry_statuses)
         print(
             f"{utc_now()} stored={stored:,}/{selected:,} unseen={unseen:,} "
             f"retryable={retryable:,} statuses={statuses}",
@@ -171,10 +210,13 @@ def main() -> int:
             "--max-pages", "8",
             "--max-sitemaps", "20",
             "--max-sitemap-urls", "10000",
-            "--retry", "1",
+            "--retry", str(args.request_retries),
             "--final-retry-passes", "0",
             "--prevent-sleep",
         ]
+        if final_retry_started:
+            for status in final_retry_statuses:
+                command.extend(("--retry-status", status))
         with stdout_path.open("a", encoding="utf-8") as stdout, stderr_path.open(
             "a", encoding="utf-8"
         ) as stderr:

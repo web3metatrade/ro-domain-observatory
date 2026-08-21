@@ -50,7 +50,7 @@ class CompleteDomainCatalogTest(unittest.TestCase):
             rows = list(iter_catalog_rows(domains, {"c.ro"}, dns, database))
             result = {row[0]: dict(zip(CATALOG_COLUMNS, row)) for row in rows}
             self.assertEqual(set(result), {"a.ro", "b.ro", "c.ro"})
-            self.assertEqual(result["a.ro"]["http_classification"], "unavailable_at_measurement")
+            self.assertEqual(result["a.ro"]["http_classification"], "http_origin_unreachable_at_measurement")
             self.assertEqual(result["a.ro"]["dns_delegation_class"], "delegated")
             self.assertEqual(result["b.ro"]["http_classification"], "not_measured_http")
             self.assertEqual(result["b.ro"]["dns_delegation_class"], "nxdomain")
@@ -80,13 +80,14 @@ class CompleteDomainCatalogTest(unittest.TestCase):
             )
             connection.execute(
                 "INSERT INTO sites VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                ("a.ro", DNS_STRATUM, "no_origin", None, None, "start", "finish", DNS_ERROR, 0, 0, 0, 0, 0),
+                ("a.ro", DNS_STRATUM, "dns_nxdomain", None, None, "start", "finish", DNS_ERROR, 0, 0, 0, 0, 0),
             )
             connection.commit()
             connection.close()
             row = next(iter_catalog_rows(all_domains, set(), dns, database))
             result = dict(zip(CATALOG_COLUMNS, row))
-            self.assertEqual(result["http_crawl_state"], "dns_verified_no_origin")
+            self.assertEqual(result["http_crawl_state"], "dns_verified_nxdomain")
+            self.assertEqual(result["http_classification"], "dns_nxdomain_at_measurement")
             self.assertEqual(result["http_error_class"], "dns_nxdomain")
 
     def test_dns_unresolved_has_its_own_classification(self):

@@ -17,10 +17,10 @@ from typing import TextIO
 from export_public_http import normalize_domain
 
 
-RETRYABLE = ("local_network_error", "worker_error")
-DNS_STRATUM = "dns_nxdomain_consensus_2026_08_21"
+RETRYABLE = ("local_network_error", "worker_error", "no_origin", "dns_unresolved")
+DNS_STRATUM = "dns_nxdomain_consensus_2026_08_21_corrected"
 DNS_ERROR = "dns_nxdomain_consensus"
-DNS_UNRESOLVED_STRATUM = "dns_unresolved_after_retries_2026_08_21"
+DNS_UNRESOLVED_STRATUM = "dns_unresolved_after_retries_2026_08_21_corrected"
 DNS_UNRESOLVED_ERROR = "dns_unresolved_after_retries"
 
 
@@ -89,7 +89,14 @@ def build_remaining_input(
         connection = sqlite3.connect(
             f"file:{database.resolve().as_posix()}?mode=ro", uri=True, timeout=120
         )
-        completed = {row[0] for row in connection.execute("SELECT domain FROM sites")}
+        placeholders = ",".join("?" for _ in RETRYABLE)
+        completed = {
+            row[0]
+            for row in connection.execute(
+                f"SELECT domain FROM sites WHERE status NOT IN ({placeholders})",
+                RETRYABLE,
+            )
+        }
         connection.close()
         remaining = [domain for domain in rows_by_shard[shard] if domain not in completed]
         path = output_dir / f"remaining-{shard}.csv"
@@ -247,18 +254,18 @@ def apply_consensus(
             ).fetchone()[0]
             replaceable = connection.execute(
                 "SELECT COUNT(*) FROM sites JOIN dns_consensus USING(domain) "
-                "WHERE status IN ('local_network_error','worker_error')"
+                "WHERE status IN ('local_network_error','worker_error','no_origin','dns_unresolved')"
             ).fetchone()[0]
             with connection:
                 for table in ("fetches", "sitemaps", "discovered_urls", "pages"):
                     connection.execute(
                         f"DELETE FROM {table} WHERE domain IN ("
                         "SELECT sites.domain FROM sites JOIN dns_consensus USING(domain) "
-                        "WHERE sites.status IN ('local_network_error','worker_error'))"
+                        "WHERE sites.status IN ('local_network_error','worker_error','no_origin','dns_unresolved'))"
                     )
                 connection.execute(
                     "DELETE FROM sites WHERE domain IN (SELECT domain FROM dns_consensus) "
-                    "AND status IN ('local_network_error','worker_error')"
+                    "AND status IN ('local_network_error','worker_error','no_origin','dns_unresolved')"
                 )
                 run_id = connection.execute(
                     "INSERT INTO crawl_runs(started_at,configuration_json) VALUES (?,?)",
@@ -271,7 +278,7 @@ def apply_consensus(
                         error,fetch_count,page_count,sitemap_count,sitemap_url_count,
                         discovered_url_count
                     )
-                    SELECT domain,?, 'no_origin', NULL, NULL, observed_at, observed_at,
+                    SELECT domain,?, 'dns_nxdomain', NULL, NULL, observed_at, observed_at,
                            ?,0,0,0,0,0
                     FROM dns_consensus
                     """,

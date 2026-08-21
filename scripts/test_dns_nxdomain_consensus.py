@@ -86,7 +86,7 @@ class DnsNxdomainConsensusTests(unittest.TestCase):
             rows = dict(connection.execute("SELECT domain,status FROM sites"))
             errors = dict(connection.execute("SELECT domain,error FROM sites"))
             connection.close()
-            self.assertEqual(rows, {"a.ro": "complete", "b.ro": "no_origin"})
+            self.assertEqual(rows, {"a.ro": "complete", "b.ro": "dns_nxdomain"})
             self.assertIsNone(errors["a.ro"])
             self.assertEqual(errors["b.ro"], "dns_nxdomain_consensus")
             connection = sqlite3.connect(databases[1])
@@ -106,8 +106,8 @@ class DnsNxdomainConsensusTests(unittest.TestCase):
             remaining = build_remaining_input(
                 queues, databases, root / "remaining", root / "remaining.txt"
             )
-            self.assertEqual(remaining["domains"], 1)
-            self.assertEqual((root / "remaining.txt").read_text(), "c.ro\n")
+            self.assertEqual(remaining["domains"], 2)
+            self.assertEqual((root / "remaining.txt").read_text(), "c.ro\nd.ro\n")
             aggregate = aggregate_summaries(
                 [root / "summary.json"], 4, root / "aggregate.json",
                 root / "unresolved.json",

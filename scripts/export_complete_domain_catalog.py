@@ -55,7 +55,8 @@ CATALOG_COLUMNS = (
 DNS_TYPES = {"A", "AAAA", "NS"}
 HTTP_CLASSIFICATIONS = {
     "complete": "available_at_measurement",
-    "no_origin": "unavailable_at_measurement",
+    "no_origin": "http_origin_unreachable_at_measurement",
+    "dns_nxdomain": "dns_nxdomain_at_measurement",
     "robots_blocked": "robots_blocked",
     "content_decode_error": "content_decode_error",
     "dns_unresolved": "dns_unresolved_at_measurement",
@@ -186,11 +187,11 @@ def iter_catalog_rows(
         else:
             status = site["status"]
             if (
-                status == "no_origin"
+                status == "dns_nxdomain"
                 and site["stratum"] == DNS_STRATUM
                 and site["error"] == DNS_ERROR
             ):
-                crawl_state = "dns_verified_no_origin"
+                crawl_state = "dns_verified_nxdomain"
             elif (
                 status == "dns_unresolved"
                 and site["stratum"] == DNS_UNRESOLVED_STRATUM
@@ -238,7 +239,7 @@ def main() -> int:
     parser.add_argument("--full-release-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument(
-        "--dataset-version", default="http-snapshot-2026-08-21-fully-verified"
+        "--dataset-version", default="http-snapshot-2026-08-21-corrected-dispositions"
     )
     args = parser.parse_args()
 

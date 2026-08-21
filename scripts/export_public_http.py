@@ -134,6 +134,12 @@ def error_class(value: str | None) -> str:
     lowered = value.casefold()
     exact = {
         "all_origin_probes_failed": "origin_unreachable",
+        "origin_dns_error": "dns_error",
+        "origin_timeout": "timeout",
+        "origin_tls_error": "tls_error",
+        "origin_http_5xx": "origin_http_5xx",
+        "origin_transport_error": "connection_error",
+        "origin_mixed_error": "mixed_transport_error",
         "disallow_unreachable": "robots_unreachable",
         "disallow_other_status": "robots_other_status",
         "dns_nxdomain_consensus": "dns_nxdomain",
@@ -141,11 +147,20 @@ def error_class(value: str | None) -> str:
     }
     if lowered in exact:
         return exact[lowered]
+    exception_prefixes = (
+        (("clientconnectordnserror:", "socket.gaierror:", "gaierror:"), "dns_error"),
+        (("connectiontimeouterror:", "timeouterror:", "asynciotimeouterror:"), "timeout"),
+        (("clientconnectorcertificateerror:", "clientsslerror:", "sslerror:"), "tls_error"),
+        (("clientconnectorerror:", "serverdisconnectederror:"), "connection_error"),
+    )
+    for prefixes, label in exception_prefixes:
+        if lowered.startswith(prefixes):
+            return label
     patterns = (
         (("timeout", "timed out"), "timeout"),
+        (("dns", "getaddrinfo", "name or service"), "dns_error"),
         (("ssl", "tls", "certificate"), "tls_error"),
         (("decompress", "decode", "encoding"), "content_decode_error"),
-        (("dns", "getaddrinfo", "name or service"), "dns_error"),
         (("refused",), "connection_refused"),
         (("reset", "connection", "connect"), "connection_error"),
         (("invalid url", "unknown url", "unsupported url"), "invalid_url"),

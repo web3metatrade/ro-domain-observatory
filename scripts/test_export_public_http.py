@@ -14,9 +14,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "export_public_http.py"
+sys.path.insert(0, str(ROOT / "scripts"))
+from export_public_http import error_class
 
 
 class PublicHttpExportTest(unittest.TestCase):
+    def test_dns_exception_with_ssl_context_is_not_mislabeled_tls(self):
+        self.assertEqual(
+            error_class("ClientConnectorDNSError: Cannot connect ssl:default"),
+            "dns_error",
+        )
+
     def test_export_filters_and_sanitizes(self):
         with tempfile.TemporaryDirectory() as temporary:
             work = Path(temporary)

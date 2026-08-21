@@ -7,6 +7,7 @@ from http_pilot import (
     classify_page,
     extract_page,
     is_local_network_error,
+    origin_failure_error,
     normalized_url,
     open_database,
     parse_sitemap,
@@ -35,6 +36,31 @@ class HttpPilotTests(unittest.TestCase):
             )
         )
         self.assertFalse(is_local_network_error("TimeoutError:"))
+
+    def test_origin_failure_classification_is_mutually_exclusive(self):
+        self.assertEqual(
+            origin_failure_error(
+                [{"status": None, "error": "ClientConnectorDNSError: ssl:default"}]
+            ),
+            "origin_dns_error",
+        )
+        self.assertEqual(
+            origin_failure_error([{"status": None, "error": "ConnectionTimeoutError:"}]),
+            "origin_timeout",
+        )
+        self.assertEqual(
+            origin_failure_error([{"status": 503, "error": None}]),
+            "origin_http_5xx",
+        )
+        self.assertEqual(
+            origin_failure_error(
+                [
+                    {"status": None, "error": "ClientConnectorDNSError: failed"},
+                    {"status": None, "error": "ConnectionTimeoutError:"},
+                ]
+            ),
+            "origin_mixed_error",
+        )
 
     def test_normalized_url(self):
         self.assertEqual(
