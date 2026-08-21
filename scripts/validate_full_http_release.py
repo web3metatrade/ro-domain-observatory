@@ -38,6 +38,8 @@ def load_provenance(path: Path, stw_domains: set[str]) -> dict[str, str]:
             if domain in stw_domains:
                 sources.add(STW_SOURCE_ID)
             result[domain] = ",".join(sorted(sources))
+    for domain in stw_domains - result.keys():
+        result[domain] = STW_SOURCE_ID
     return result
 
 
@@ -202,6 +204,67 @@ def main() -> int:
         if rows != report.get("rows"):
             errors.append(f"{name}: row count differs from manifest")
         results[name] = {"rows": rows, "bytes": path.stat().st_size, "sha256": digest, "counts": counts}
+
+    for name, report in manifest["files"].items():
+        if name in validators:
+            continue
+        path = release_dir / name
+        if not path.is_file():
+            errors.append(f"missing {name}")
+            continue
+        digest = sha256(path)
+        if path.stat().st_size != report.get("bytes") or digest != report.get("sha256"):
+            errors.append(f"{name}: identity differs from manifest")
+        results[name] = {
+            "rows": report.get("rows"),
+            "bytes": path.stat().st_size,
+            "sha256": digest,
+        }
+
+    dns_summary_path = release_dir / "dns_nxdomain_consensus_summary.json"
+    if dns_summary_path.is_file():
+        dns_summary = json.loads(dns_summary_path.read_text(encoding="utf-8"))
+        if dns_summary != manifest.get("dns_nxdomain_consensus"):
+            errors.append("DNS consensus summary differs from manifest")
+        phases = dns_summary.get("phases")
+        if phases:
+            valid_dns_summary = (
+                dns_summary.get("consensus_nxdomain", 0) > 0
+                and dns_summary.get("dns_unresolved", 0) > 0
+                and dns_summary.get("dns_final_dispositions")
+                == dns_summary.get("consensus_nxdomain", 0)
+                + dns_summary.get("dns_unresolved", 0)
+                and all(
+                    phase.get("queue_domains", 0) > 0
+                    and len(phase.get("results", [])) >= 2
+                    and all(
+                        result.get("rows") == phase["queue_domains"]
+                        for result in phase["results"]
+                    )
+                    and all(
+                        shard.get("quick_check") == "ok"
+                        for shard in phase.get("shards", [])
+                    )
+                    for phase in phases
+                )
+            )
+        else:
+            valid_dns_summary = (
+                dns_summary.get("consensus_nxdomain", 0) > 0
+                and len(dns_summary.get("results", [])) >= 2
+                and all(
+                    result.get("rows") == dns_summary.get("queue_domains")
+                    for result in dns_summary.get("results", [])
+                )
+                and all(
+                    shard.get("quick_check") == "ok"
+                    for shard in dns_summary.get("shards", [])
+                )
+            )
+        if not valid_dns_summary:
+            errors.append("DNS consensus summary is incomplete")
+    else:
+        errors.append("missing dns_nxdomain_consensus_summary.json")
 
     if results.get("http_sites_full.csv.gz", {}).get("rows") != manifest["source_database"]["expected_domains"]:
         errors.append("site export does not cover every source crawl domain")

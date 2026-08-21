@@ -83,13 +83,15 @@ distributed as GitHub Release assets instead of being added to Git history.
 See `docs/HTTP_DATASET.md` for schemas, hashes, privacy exclusions and the exact
 reproduction commands.
 
-A separate complete-measurement release covers all 405,051 domains processed by
-the HTTP crawler, with 1,322,812 sanitized sitemap observations and 86,971
-single-active-CUI page-evidence rows. Its domain-level file retains the actual
-candidate discovery sources and adds Scrape The World attribution only where a
-supplied source file documents it. See `docs/FULL_HTTP_DATASET.md`.
+The fully verified 21 August release covers the complete 748,706-domain union.
+Every domain has an HTTP result or a fresh multi-resolver DNS disposition: the
+canonical catalog contains 247,950 available, 468,486 unavailable, 1,402
+robots-blocked, 3 content-decode-error and 30,865 explicitly DNS-unresolved
+rows. No row remains `not_measured_http`. The privacy-minimized assets contain
+1,341,391 sitemap observations and 89,523 single-active-CUI evidence rows.
 
-The canonical coverage catalog contains 748,706 domains—including unavailable
-and not-yet-crawled candidates—in one deterministic CSV.GZ. It distinguishes
-`unavailable_at_measurement` from `not_measured_http` and joins candidate
-provenance, DNS state and HTTP state without dropping unclassified domains.
+The release retains actual candidate discovery sources and adds Scrape The
+World attribution only where the supplied stage-two file documents it. Large
+privacy-minimized exports are GitHub Release assets; raw HTML, contact data and
+the bulk URL graph are excluded. See `docs/FULL_HTTP_DATASET.md` and the
+[21 August release notes](docs/releases/HTTP_SNAPSHOT_2026-08-21_FULLY_VERIFIED.md).

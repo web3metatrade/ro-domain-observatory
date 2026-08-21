@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 from export_full_http import STW_SOURCE_ID, load_scope, read_scrape_the_world_domains
+from validate_full_http_release import load_provenance
 
 
 class FullHttpExportTest(unittest.TestCase):
@@ -35,13 +36,19 @@ class FullHttpExportTest(unittest.TestCase):
                 writer.writerow(("b.ro", "commoncrawl_domain_graph_2026_may_jun_jul"))
 
             con = sqlite3.connect(":memory:")
-            count, _, attributed = load_scope(con, scope, stw_domains)
+            base_count, count, _, attributed, stw_only = load_scope(
+                con, scope, stw_domains
+            )
             rows = dict(con.execute("SELECT domain,discovery_sources FROM domain_provenance"))
             con.close()
-            self.assertEqual(count, 2)
+            self.assertEqual(base_count, 2)
+            self.assertEqual(count, 3)
             self.assertEqual(attributed, 1)
+            self.assertEqual(stw_only, 1)
             self.assertEqual(rows["a.ro"], f"all_domains_ct,{STW_SOURCE_ID}")
             self.assertEqual(rows["b.ro"], "commoncrawl_domain_graph_2026_may_jun_jul")
+            self.assertEqual(rows["outside.ro"], STW_SOURCE_ID)
+            self.assertEqual(load_provenance(scope, stw_domains), rows)
 
 
 if __name__ == "__main__":

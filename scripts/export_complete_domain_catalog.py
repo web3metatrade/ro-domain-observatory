@@ -14,6 +14,12 @@ from pathlib import Path
 
 from export_full_http import STW_SOURCE_ID, read_scrape_the_world_domains
 from export_public_http import DeterministicGzipCsv, error_class, normalize_domain, sanitize_url, sha256
+from dns_nxdomain_consensus import (
+    DNS_ERROR,
+    DNS_STRATUM,
+    DNS_UNRESOLVED_ERROR,
+    DNS_UNRESOLVED_STRATUM,
+)
 
 
 CATALOG_COLUMNS = (
@@ -52,6 +58,7 @@ HTTP_CLASSIFICATIONS = {
     "no_origin": "unavailable_at_measurement",
     "robots_blocked": "robots_blocked",
     "content_decode_error": "content_decode_error",
+    "dns_unresolved": "dns_unresolved_at_measurement",
 }
 
 
@@ -178,8 +185,22 @@ def iter_catalog_rows(
             )
         else:
             status = site["status"]
+            if (
+                status == "no_origin"
+                and site["stratum"] == DNS_STRATUM
+                and site["error"] == DNS_ERROR
+            ):
+                crawl_state = "dns_verified_no_origin"
+            elif (
+                status == "dns_unresolved"
+                and site["stratum"] == DNS_UNRESOLVED_STRATUM
+                and site["error"] == DNS_UNRESOLVED_ERROR
+            ):
+                crawl_state = "dns_verified_unresolved"
+            else:
+                crawl_state = "crawled"
             http_values = (
-                "crawled",
+                crawl_state,
                 status,
                 HTTP_CLASSIFICATIONS.get(status, "other_http_result"),
                 sanitize_url(site["origin_url"]),
@@ -216,6 +237,9 @@ def main() -> int:
     parser.add_argument("--http-db", type=Path, required=True)
     parser.add_argument("--full-release-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--dataset-version", default="http-snapshot-2026-08-21-fully-verified"
+    )
     args = parser.parse_args()
 
     all_domains = args.all_domains.resolve()
@@ -246,16 +270,21 @@ def main() -> int:
     catalog_report = output.report()
 
     manifest = old_manifest
-    manifest["dataset_version"] = "http-snapshot-2026-08-19-complete-catalog"
-    manifest["scope"] = "all known candidate domains, including unavailable and not-yet-crawled domains"
+    manifest["dataset_version"] = args.dataset_version
+    manifest["scope"] = "all known candidate domains, each with a completed HTTP crawl disposition"
     manifest["files"][catalog.name] = catalog_report
     manifest["catalog"] = {
         "rows": rows,
-        "base_candidate_rows": old_manifest["candidate_domain_input"]["rows"],
+        "base_candidate_rows": old_manifest["candidate_domain_input"].get(
+            "base_rows", old_manifest["candidate_domain_input"]["rows"]
+        ),
         "scrape_the_world_source_file_rows": stw_rows,
         "scrape_the_world_unique_ro_domains": len(stw_domains),
         "scrape_the_world_domains_in_catalog": stw_rows_out,
-        "new_scrape_the_world_domains_added_to_catalog": rows - old_manifest["candidate_domain_input"]["rows"],
+        "new_scrape_the_world_domains_added_to_catalog": rows
+        - old_manifest["candidate_domain_input"].get(
+            "base_rows", old_manifest["candidate_domain_input"]["rows"]
+        ),
         "http_classifications": dict(sorted(classifications.items())),
         "dns_delegation_classes": dict(sorted(delegation.items())),
         "semantics": {
@@ -265,7 +294,10 @@ def main() -> int:
     }
     manifest["attribution"]["scrape_the_world"]["domains_in_complete_catalog"] = stw_rows_out
     manifest["attribution"]["scrape_the_world"]["new_domains_added_to_complete_catalog"] = (
-        rows - old_manifest["candidate_domain_input"]["rows"]
+        rows
+        - old_manifest["candidate_domain_input"].get(
+            "base_rows", old_manifest["candidate_domain_input"]["rows"]
+        )
     )
     manifest["inputs"] = {
         "all_domains_sha256": sha256(all_domains),

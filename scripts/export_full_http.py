@@ -60,14 +60,15 @@ def load_scope(
     con: sqlite3.Connection,
     path: Path,
     stw_domains: set[str],
-) -> tuple[int, str, int]:
+) -> tuple[int, int, str, int, int]:
     con.execute("CREATE TEMP TABLE public_domains(domain TEXT PRIMARY KEY) WITHOUT ROWID")
     con.execute(
         "CREATE TEMP TABLE domain_provenance("
         "domain TEXT PRIMARY KEY, discovery_sources TEXT NOT NULL) WITHOUT ROWID"
     )
-    count = 0
+    base_count = 0
     stw_attributed = 0
+    base_domains: set[str] = set()
     batch: list[tuple[str, str]] = []
     with gzip.open(path, "rt", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -84,17 +85,33 @@ def load_scope(
                 stw_attributed += 1
             if not sources:
                 raise ValueError(f"domain has no discovery source: {domain}")
+            base_domains.add(domain)
             batch.append((domain, ",".join(sorted(sources))))
             if len(batch) >= 10_000:
                 con.executemany("INSERT INTO domain_provenance VALUES (?,?)", batch)
                 con.executemany("INSERT INTO public_domains VALUES (?)", ((row[0],) for row in batch))
-                count += len(batch)
+                base_count += len(batch)
                 batch.clear()
         if batch:
             con.executemany("INSERT INTO domain_provenance VALUES (?,?)", batch)
             con.executemany("INSERT INTO public_domains VALUES (?)", ((row[0],) for row in batch))
-            count += len(batch)
-    return count, sha256(path), stw_attributed
+            base_count += len(batch)
+
+    stw_only = sorted(stw_domains - base_domains)
+    con.executemany(
+        "INSERT INTO domain_provenance VALUES (?,?)",
+        ((domain, STW_SOURCE_ID) for domain in stw_only),
+    )
+    con.executemany(
+        "INSERT INTO public_domains VALUES (?)", ((domain,) for domain in stw_only)
+    )
+    return (
+        base_count,
+        base_count + len(stw_only),
+        sha256(path),
+        stw_attributed,
+        len(stw_only),
+    )
 
 
 def export_sites(con: sqlite3.Connection, path: Path) -> tuple[dict[str, object], Counter[str]]:
@@ -137,6 +154,7 @@ def main() -> int:
     parser.add_argument("--all-domains", type=Path, required=True)
     parser.add_argument("--previous-public-domains", type=Path, required=True)
     parser.add_argument("--scrape-the-world-stage2", type=Path, required=True)
+    parser.add_argument("--dns-consensus-summary", type=Path, required=True)
     parser.add_argument("--companies-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--dataset-version", default="http-snapshot-2026-08-19-full-measurement")
@@ -157,11 +175,96 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     active_cuis = load_active_cuis(args.companies_dir.resolve())
 
+    dns_summary_path = args.dns_consensus_summary.resolve()
+    dns_summary = json.loads(dns_summary_path.read_text(encoding="utf-8"))
+    phases = dns_summary.get("phases")
+    if phases:
+        valid_dns_summary = (
+            dns_summary.get("queue_domains", 0) > 0
+            and dns_summary.get("consensus_nxdomain", 0) > 0
+            and dns_summary.get("dns_unresolved", 0) > 0
+            and dns_summary.get("dns_final_dispositions")
+            == dns_summary.get("consensus_nxdomain", 0)
+            + dns_summary.get("dns_unresolved", 0)
+            and all(
+                phase.get("queue_domains", 0) > 0
+                and len(phase.get("results", [])) >= 2
+                and all(
+                    result.get("rows") == phase["queue_domains"]
+                    for result in phase["results"]
+                )
+                and all(
+                    shard.get("quick_check") == "ok"
+                    for shard in phase.get("shards", [])
+                )
+                for phase in phases
+            )
+        )
+        public_dns_summary = dns_summary
+    else:
+        valid_dns_summary = (
+            dns_summary.get("queue_domains", 0) > 0
+            and dns_summary.get("consensus_nxdomain", 0) > 0
+            and len(dns_summary.get("results", [])) >= 2
+            and all(
+                result.get("rows") == dns_summary["queue_domains"]
+                for result in dns_summary["results"]
+            )
+            and all(
+                shard.get("quick_check") == "ok"
+                for shard in dns_summary.get("shards", [])
+            )
+        )
+        public_dns_summary = {
+            "generated_at": dns_summary["generated_at"],
+            "method": dns_summary["method"],
+            "queue_domains": dns_summary["queue_domains"],
+            "consensus_nxdomain": dns_summary["consensus_nxdomain"],
+            "results": [
+                {
+                    key: result[key]
+                    for key in ("bytes", "sha256", "rows", "statuses", "resolvers")
+                }
+                for result in dns_summary["results"]
+            ],
+            "shards": [
+                {
+                    key: shard[key]
+                    for key in (
+                        "shard", "consensus_domains", "inserted", "replaced_retryable",
+                        "preserved_existing_http", "sites_after", "quick_check",
+                    )
+                }
+                for shard in dns_summary["shards"]
+            ],
+        }
+    if not valid_dns_summary:
+        raise ValueError("DNS consensus summary is incomplete or invalid")
+    public_dns_path = output_dir / "dns_nxdomain_consensus_summary.json"
+    public_dns_path.write_text(
+        json.dumps(public_dns_summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    public_dns_report = {
+        "rows": dns_summary.get(
+            "dns_final_dispositions", dns_summary["consensus_nxdomain"]
+        ),
+        "bytes": public_dns_path.stat().st_size,
+        "sha256": sha256(public_dns_path),
+        "format": "JSON",
+    }
+
     uri = f"file:{database.as_posix()}?mode=ro&immutable=1"
     con = sqlite3.connect(uri, uri=True)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA temp_store=MEMORY")
-    scope_rows, scope_hash, stw_scope_domains = load_scope(
+    (
+        base_scope_rows,
+        scope_rows,
+        scope_hash,
+        stw_scope_domains,
+        stw_only_scope_domains,
+    ) = load_scope(
         con, args.all_domains.resolve(), stw_domains
     )
     con.execute("CREATE TEMP TABLE previous_public(domain TEXT PRIMARY KEY) WITHOUT ROWID")
@@ -196,9 +299,9 @@ def main() -> int:
 
     manifest = {
         "dataset_version": args.dataset_version,
-        "snapshot_window": {"started_at_min": "2026-08-13", "finished_at_max": "2026-08-19"},
-        "scope": "complete privacy-minimized projection of the local HTTP measurement",
-        "measurement_source": "independent_http_crawl",
+        "snapshot_window": {"started_at_min": "2026-08-13", "finished_at_max": "2026-08-21"},
+        "scope": "complete privacy-minimized projection of every candidate domain in the base plus Scrape The World union",
+        "measurement_source": "independent HTTP crawl plus fresh multi-resolver NXDOMAIN consensus",
         "source_database": {
             "bytes": source_summary["database_bytes"],
             "sha256": source_summary["database_sha256"],
@@ -207,8 +310,10 @@ def main() -> int:
         },
         "candidate_domain_input": {
             "rows": scope_rows,
+            "base_rows": base_scope_rows,
+            "scrape_the_world_only_rows": stw_only_scope_domains,
             "sha256": scope_hash,
-            "source_semantics": "per-domain discovery_sources retain the actual candidate-list provenance",
+            "source_semantics": "per-domain discovery_sources retain actual provenance; Scrape The World-only domains are appended to the base candidate scope",
         },
         "attribution": {
             "scrape_the_world": {
@@ -219,11 +324,14 @@ def main() -> int:
                 "source_file_rows": stw_rows,
                 "source_file_sha256": sha256(stw_path),
                 "unique_ro_domains": len(stw_domains),
-                "domains_in_candidate_scope": stw_scope_domains,
+                "domains_in_candidate_scope": stw_scope_domains + stw_only_scope_domains,
+                "domains_already_in_base_scope": stw_scope_domains,
+                "domains_added_beyond_base_scope": stw_only_scope_domains,
                 "attribution_rule": "applied only to domains present in the supplied stage-two file",
             }
         },
         "coverage": coverage,
+        "dns_nxdomain_consensus": public_dns_summary,
         "active_cui_reference_count": len(active_cuis),
         "privacy": {
             "urls": "HTTP(S) scheme, hostname, port and path only; credentials, query strings and fragments removed",
@@ -237,6 +345,7 @@ def main() -> int:
             "http_sites_full.csv.gz": site_report,
             "sitemaps_full.csv.gz": sitemap_report,
             "company_evidence_full.csv.gz": evidence_report,
+            "dns_nxdomain_consensus_summary.json": public_dns_report,
         },
         "statistics": {
             "site_statuses": dict(sorted(site_statuses.items())),

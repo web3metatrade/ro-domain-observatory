@@ -136,6 +136,8 @@ def error_class(value: str | None) -> str:
         "all_origin_probes_failed": "origin_unreachable",
         "disallow_unreachable": "robots_unreachable",
         "disallow_other_status": "robots_other_status",
+        "dns_nxdomain_consensus": "dns_nxdomain",
+        "dns_unresolved_after_retries": "dns_unresolved",
     }
     if lowered in exact:
         return exact[lowered]
