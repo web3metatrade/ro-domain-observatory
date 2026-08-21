@@ -30,6 +30,13 @@ class BatchedHttpSupervisorTest(unittest.TestCase):
             )
             self.assertEqual((stored, unseen), (2, 1))
             self.assertEqual(statuses, {"complete": 1, "no_origin": 1})
+            stored, pending, _ = database_stats(
+                database,
+                ["selected-complete.ro", "selected-retry.ro", "unseen.ro"],
+                ("worker_error",),
+                ("no_origin",),
+            )
+            self.assertEqual((stored, pending), (2, 2))
 
 
 if __name__ == "__main__":

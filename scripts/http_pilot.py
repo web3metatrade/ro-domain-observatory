@@ -154,6 +154,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-sitemap-bytes", type=int, default=52_428_800)
     parser.add_argument("--retry", type=int, default=1)
     parser.add_argument(
+        "--origin-only",
+        action="store_true",
+        help="Stop after finding a usable HTTP origin; defer sitemap/page crawling.",
+    )
+    parser.add_argument(
         "--final-retry-passes",
         type=int,
         default=1,
@@ -671,6 +676,22 @@ async def process_domain(
             "fetches": fetches,
             "pages": pages,
             "sitemaps": sitemap_rows,
+            "urls": [],
+        }
+
+    if args.origin_only:
+        return {
+            "domain": domain,
+            "stratum": item.get("stratum"),
+            "status": "origin_available",
+            "origin_url": origin_url,
+            "final_url": origin_url,
+            "started_at": started_at,
+            "finished_at": utc_now(),
+            "error": None,
+            "fetches": fetches,
+            "pages": [],
+            "sitemaps": [],
             "urls": [],
         }
 

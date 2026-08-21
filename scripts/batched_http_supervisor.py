@@ -89,7 +89,10 @@ def private_memory_mb(pid: int) -> float:
 
 
 def database_stats(
-    database: Path, selected_domains: list[str], retryable_statuses: tuple[str, ...]
+    database: Path,
+    selected_domains: list[str],
+    final_retry_statuses: tuple[str, ...],
+    crawl_retry_statuses: tuple[str, ...] = (),
 ) -> tuple[int, int, dict[str, int]]:
     connection = sqlite3.connect(database, timeout=30)
     connection.execute(
@@ -106,8 +109,10 @@ def database_stats(
     )
     connection.close()
     stored = sum(statuses.values())
-    retryable = sum(statuses.get(status, 0) for status in retryable_statuses)
-    return stored, max(len(selected_domains) - stored, 0), statuses
+    pending = max(len(selected_domains) - stored, 0) + sum(
+        statuses.get(status, 0) for status in crawl_retry_statuses
+    )
+    return stored, pending, statuses
 
 
 def parse_args() -> argparse.Namespace:
@@ -127,6 +132,17 @@ def parse_args() -> argparse.Namespace:
             "Retries inside each individual HTTP request. Domain-level final retry is "
             "controlled separately and is the recommended recovery mechanism."
         ),
+    )
+    parser.add_argument(
+        "--origin-only",
+        action="store_true",
+        help="Run only the fast origin-discovery stage.",
+    )
+    parser.add_argument(
+        "--crawl-retry-status",
+        action="append",
+        dest="crawl_retry_statuses",
+        help="Existing status to treat as pending during every normal batch.",
     )
     parser.add_argument("--memory-limit-mb", type=float, default=1200.0)
     parser.add_argument("--minimum-free-mb", type=float, default=900.0)
@@ -163,10 +179,14 @@ def main() -> int:
     final_retry_statuses = tuple(
         dict.fromkeys(args.final_retry_statuses or DEFAULT_RETRYABLE)
     )
+    crawl_retry_statuses = tuple(dict.fromkeys(args.crawl_retry_statuses or ()))
 
     while True:
         stored, unseen, statuses = database_stats(
-            args.database, selected_domains, final_retry_statuses
+            args.database,
+            selected_domains,
+            final_retry_statuses,
+            crawl_retry_statuses,
         )
         retryable = sum(statuses.get(status, 0) for status in final_retry_statuses)
         print(
@@ -214,8 +234,13 @@ def main() -> int:
             "--final-retry-passes", "0",
             "--prevent-sleep",
         ]
+        if args.origin_only:
+            command.append("--origin-only")
         if final_retry_started:
             for status in final_retry_statuses:
+                command.extend(("--retry-status", status))
+        else:
+            for status in crawl_retry_statuses:
                 command.extend(("--retry-status", status))
         with stdout_path.open("a", encoding="utf-8") as stdout, stderr_path.open(
             "a", encoding="utf-8"
