@@ -88,3 +88,8 @@ the HTTP crawler, with 1,322,812 sanitized sitemap observations and 86,971
 single-active-CUI page-evidence rows. Its domain-level file retains the actual
 candidate discovery sources and adds Scrape The World attribution only where a
 supplied source file documents it. See `docs/FULL_HTTP_DATASET.md`.
+
+The canonical coverage catalog contains 748,706 domains—including unavailable
+and not-yet-crawled candidates—in one deterministic CSV.GZ. It distinguishes
+`unavailable_at_measurement` from `not_measured_http` and joins candidate
+provenance, DNS state and HTTP state without dropping unclassified domains.

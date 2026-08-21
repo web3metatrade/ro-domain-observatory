@@ -95,3 +95,31 @@ python scripts/validate_full_http_release.py `
 
 Repeated exports from identical inputs use deterministic gzip metadata and must
 produce the hashes listed above.
+
+## Complete coverage catalog
+
+The canonical follow-up release adds `domain_coverage_complete.csv.gz`, one row
+for every known candidate, including domains that were unavailable or were not
+part of the HTTP crawl. It contains 748,706 rows: the 746,909-domain base build
+plus 1,797 valid `.ro` domains found only in the supplied Scrape The World
+stage-two file.
+
+HTTP classification | Domains
+--- | ---:
+`available_at_measurement` | 244,076
+`unavailable_at_measurement` | 159,578
+`robots_blocked` | 1,394
+`content_decode_error` | 3
+`not_measured_http` | 343,655
+
+`unavailable_at_measurement` means origins were attempted but none was usable
+during the snapshot. `not_measured_http` means no HTTP conclusion was made: the
+domain remains in the catalog for future DNS checks and crawling.
+
+The catalog combines candidate provenance, A/AAAA/NS status, delegation class,
+HTTP crawl state, sanitized origin/final URLs, normalized error class and crawl
+counters. Empty HTTP fields on a `not_measured_http` row are intentional and do
+not mean that the domain is permanently unavailable.
+
+The deterministic catalog archive is 15,726,485 bytes and has SHA-256
+`1a942a52ea2c13928cfdf460f1823dc6ba24dd045186e85e53b8218e37299a06`.
