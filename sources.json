@@ -350,6 +350,20 @@
     "last_checked_at": "2026-08-12"
   },
   {
+    "source_id": "scrape_the_world_stage2",
+    "name": "Scrape The World stage-two website candidates",
+    "category": "company_dataset",
+    "url": "https://www.linkedin.com/company/scrape-the-world/",
+    "access_method": "Dataset supplied directly by Scrape The World",
+    "coverage": "Website candidates associated with Romanian CUIs by a stage-two matcher",
+    "license": "Direct permission from Scrape The World CEO held by maintainer",
+    "redistribution_status": "permission_held",
+    "public_export": 1,
+    "import_status": "imported_for_http_attribution",
+    "notes": "Attribute this source only to domains present in the supplied file; CUI-domain ownership remains a separate validation decision.",
+    "last_checked_at": "2026-08-21"
+  },
+  {
     "source_id": "search_engines",
     "name": "Search engine result APIs",
     "category": "search",

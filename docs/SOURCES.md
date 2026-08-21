@@ -33,6 +33,15 @@ The machine-readable details and current access decisions are in
 `sources.json`. Any source whose redistribution status is `unclear`,
 `restricted` or `research_only` is excluded from public exports by default.
 
+## Scrape The World permission
+
+The maintainer holds direct permission from Florin Badita, CEO of Scrape The
+World, to merge the supplied website datasets into this public repository. The
+catalog uses separate `scrape_the_world_legacy` and
+`scrape_the_world_stage2` source IDs. Attribution is attached only to domains
+actually present in the corresponding supplied file; it is not applied to an
+unrelated domain merely because that domain was measured by this project.
+
 ## Explicit non-sources
 
 - Alphabetic brute force is computationally infeasible and is not a source.

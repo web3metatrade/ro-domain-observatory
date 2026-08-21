@@ -82,3 +82,9 @@ public-provenance domains, 909,683 unique sanitized sitemap observations and
 distributed as GitHub Release assets instead of being added to Git history.
 See `docs/HTTP_DATASET.md` for schemas, hashes, privacy exclusions and the exact
 reproduction commands.
+
+A separate complete-measurement release covers all 405,051 domains processed by
+the HTTP crawler, with 1,322,812 sanitized sitemap observations and 86,971
+single-active-CUI page-evidence rows. Its domain-level file retains the actual
+candidate discovery sources and adds Scrape The World attribution only where a
+supplied source file documents it. See `docs/FULL_HTTP_DATASET.md`.
